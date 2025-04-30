@@ -29,15 +29,12 @@ app.add_middleware(
 )
 
 # Define the path to the static directory where frontend build output will be placed
-# Use absolute path within the container context, assuming Dockerfile copies build to /app/static
 STATIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static"))
+ASSETS_DIR = os.path.join(STATIC_DIR, "assets")
 
-# Mount static files directory BEFORE the root path
-# This assumes your frontend build output (JS, CSS, etc.) is in 'static'
-# and index.html refers to them relatively (e.g., /assets/index-*.js)
-app.mount(
-    "/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets"
-)
+# Only mount static files if the directory exists (for development mode)
+if os.path.exists(ASSETS_DIR):
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
 
 class PromptRequest(BaseModel):
@@ -90,8 +87,7 @@ async def handle_prompt(request: PromptRequest):
                 },
             }
         else:
-            # Should not happen based on parse_and_execute_command logic
-            # but good to have a fallback.
+            # Should not happen but good to have a fallback.
             raise HTTPException(
                 status_code=500, detail="Internal server error: Unexpected result type"
             )

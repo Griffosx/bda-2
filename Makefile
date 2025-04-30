@@ -1,4 +1,4 @@
-.PHONY: test test-cov clean
+.PHONY: test test-cov clean dev
 
 # Python path to ensure src directory is in the path
 PYTHONPATH := $(shell pwd)/src
@@ -8,3 +8,6 @@ test:
 
 test-cov:
 	PYTHONPATH=$(PYTHONPATH) pytest tests/ --cov=src --cov-report=term-missing -v
+
+dev:
+	PYTHONPATH=$(PYTHONPATH) uvicorn src.web:app --reload --port 8000

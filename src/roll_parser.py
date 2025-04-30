@@ -1,6 +1,8 @@
 import random
 import re
+from collections import Counter
 from dataclasses import dataclass
+from statistics import mean, median, stdev
 
 
 @dataclass
@@ -21,6 +23,19 @@ class DiceResult:
     def total(self) -> int:
         """Calculate the total value of the roll including modifier."""
         return sum(self.individual_values) + self.modifier
+
+
+@dataclass
+class DiceRollStats:
+    """Statistics from multiple dice roll simulations."""
+
+    count: int
+    minimum: int
+    maximum: int
+    mean: float
+    median: float
+    std_dev: float
+    bins: dict[int, int]  # Maps total value to frequency
 
 
 class DiceParsingError(Exception):
@@ -79,3 +94,40 @@ def simulate_dice_roll(roll: DiceRoll) -> DiceResult:
 
     # Return the DiceResult with individual values and modifier
     return DiceResult(individual_values=values, modifier=roll.modifier)
+
+
+def simulate_dice_statistics(roll: DiceRoll, num_simulations: int) -> DiceRollStats:
+    """
+    Run multiple dice roll simulations and collect statistics.
+
+    Args:
+        roll: A DiceRoll object specifying the dice configuration
+        num_simulations: Number of simulations to run
+
+    Returns:
+        DiceRollStats: Statistics collected from the simulations
+    """
+    if num_simulations <= 0:
+        raise ValueError("Number of simulations must be positive")
+
+    # Run all simulations and collect total values
+    all_results = []
+    for _ in range(num_simulations):
+        result = simulate_dice_roll(roll)
+        all_results.append(result.total)
+
+    # Calculate frequency distribution
+    bins = dict(Counter(all_results))
+
+    # Calculate statistics
+    stats = DiceRollStats(
+        count=num_simulations,
+        minimum=min(all_results),
+        maximum=max(all_results),
+        mean=mean(all_results),
+        median=median(all_results),
+        std_dev=stdev(all_results) if num_simulations > 1 else 0,
+        bins=bins,
+    )
+
+    return stats

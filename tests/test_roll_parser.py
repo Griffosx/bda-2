@@ -6,8 +6,10 @@ from roll_parser import (
     DiceParsingError,
     DiceResult,
     DiceRoll,
+    DiceRollStats,
     parse_dice_roll,
     simulate_dice_roll,
+    simulate_dice_statistics,
 )
 
 
@@ -151,3 +153,93 @@ def test_simulate_dice_roll_edge_cases():
     assert result.individual_values[0] == 1  # Only possible value for d1
     assert result.modifier == 0
     assert result.total == 1
+
+
+# Tests for simulate_dice_statistics
+NUM_SIMULATIONS = 10000  # Use a larger number for more stable statistical tests
+TOLERANCE = 0.1  # Tolerance for comparing mean
+
+
+def test_simulate_dice_statistics_basic():
+    """Test statistics for a basic roll (2d6)."""
+    roll = DiceRoll(num_dice=2, num_sides=6, modifier=0)
+    stats = simulate_dice_statistics(roll, NUM_SIMULATIONS)
+
+    assert isinstance(stats, DiceRollStats)
+    assert stats.count == NUM_SIMULATIONS
+    assert stats.minimum >= 2  # Theoretical min for 2d6 is 1+1=2
+    assert stats.maximum <= 12  # Theoretical max for 2d6 is 6+6=12
+
+    # Theoretical mean for 2d6 is 2 * (6+1)/2 = 7.0
+    assert abs(stats.mean - 7.0) < TOLERANCE
+
+    # Check bins structure and content
+    assert isinstance(stats.bins, dict)
+    assert sum(stats.bins.values()) == NUM_SIMULATIONS
+    assert all(isinstance(k, int) for k in stats.bins.keys())
+    assert all(isinstance(v, int) for v in stats.bins.values())
+    assert all(2 <= total <= 12 for total in stats.bins.keys())
+
+
+def test_simulate_dice_statistics_with_modifier():
+    """Test statistics for a roll with a modifier (3d4+5)."""
+    roll = DiceRoll(num_dice=3, num_sides=4, modifier=5)
+    stats = simulate_dice_statistics(roll, NUM_SIMULATIONS)
+
+    assert stats.count == NUM_SIMULATIONS
+    # Theoretical min for 3d4+5 is 3*1+5 = 8
+    # Theoretical max for 3d4+5 is 3*4+5 = 17
+    assert stats.minimum >= 8
+    assert stats.maximum <= 17
+
+    # Theoretical mean for 3d4+5 is 3 * (4+1)/2 + 5 = 3 * 2.5 + 5 = 7.5 + 5 = 12.5
+    assert abs(stats.mean - 12.5) < TOLERANCE
+    assert sum(stats.bins.values()) == NUM_SIMULATIONS
+    assert all(8 <= total <= 17 for total in stats.bins.keys())
+
+
+def test_simulate_dice_statistics_one_simulation():
+    """Test statistics with only one simulation."""
+    roll = DiceRoll(num_dice=2, num_sides=8, modifier=-1)
+    # Need to seed for reproducibility if we check exact values
+    # For now, just check properties that hold true for 1 sim
+    stats = simulate_dice_statistics(roll, 1)
+
+    assert stats.count == 1
+    # For 1 simulation, min, max, mean, median are the same single result
+    single_result = list(stats.bins.keys())[0]  # Get the only key
+    assert stats.minimum == single_result
+    assert stats.maximum == single_result
+    assert stats.mean == float(single_result)
+    assert stats.median == float(single_result)
+    assert stats.std_dev == 0.0  # Std dev is 0 for a single data point
+    assert len(stats.bins) == 1
+    assert stats.bins[single_result] == 1
+
+
+def test_simulate_dice_statistics_deterministic():
+    """Test statistics for a deterministic roll (5d1+10)."""
+    roll = DiceRoll(num_dice=5, num_sides=1, modifier=10)
+    stats = simulate_dice_statistics(roll, NUM_SIMULATIONS)
+
+    expected_total = 5 * 1 + 10  # Always 15
+
+    assert stats.count == NUM_SIMULATIONS
+    assert stats.minimum == expected_total
+    assert stats.maximum == expected_total
+    assert stats.mean == expected_total
+    assert stats.median == expected_total
+    assert stats.std_dev == 0.0
+    assert len(stats.bins) == 1
+    assert stats.bins.get(expected_total) == NUM_SIMULATIONS
+
+
+def test_simulate_dice_statistics_invalid_simulations():
+    """Test that non-positive simulation counts raise ValueError."""
+    roll = DiceRoll(num_dice=1, num_sides=6)
+
+    with pytest.raises(ValueError, match="Number of simulations must be positive"):
+        simulate_dice_statistics(roll, 0)
+
+    with pytest.raises(ValueError, match="Number of simulations must be positive"):
+        simulate_dice_statistics(roll, -100)

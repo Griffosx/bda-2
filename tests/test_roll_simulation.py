@@ -2,11 +2,12 @@ from unittest.mock import patch
 
 import pytest
 
-from roll_parser import (
+from roll_simulation import (
     DiceParsingError,
     DiceResult,
     DiceRoll,
     DiceRollStats,
+    parse_and_execute_command,
     parse_dice_roll,
     simulate_dice_roll,
     simulate_dice_statistics,
@@ -243,3 +244,114 @@ def test_simulate_dice_statistics_invalid_simulations():
 
     with pytest.raises(ValueError, match="Number of simulations must be positive"):
         simulate_dice_statistics(roll, -100)
+
+
+# --- Tests for 'roll' command ---
+
+
+def test_parse_execute_roll_simple():
+    """Test basic 'roll <dice>' command."""
+    result = parse_and_execute_command("roll 2d6")
+    assert isinstance(result, DiceResult)
+    assert len(result.individual_values) == 2
+    assert result.modifier == 0
+
+
+def test_parse_execute_roll_with_modifier():
+    """Test 'roll <dice>+mod' command."""
+    result = parse_and_execute_command("  r 1d20+5 ")  # Test 'r' alias and whitespace
+    assert isinstance(result, DiceResult)
+    assert len(result.individual_values) == 1
+    assert result.modifier == 5
+
+
+def test_parse_execute_roll_with_negative_modifier():
+    """Test 'roll <dice>-mod' command."""
+    result = parse_and_execute_command("roll 3d4 - 2")
+    assert isinstance(result, DiceResult)
+    assert len(result.individual_values) == 3
+    assert result.modifier == -2
+
+
+def test_parse_execute_roll_missing_dice():
+    """Test 'roll' command with missing dice string."""
+    with pytest.raises(ValueError, match="Missing dice specification"):
+        parse_and_execute_command("roll")
+
+
+def test_parse_execute_roll_invalid_dice():
+    """Test 'roll' command with invalid dice string."""
+    with pytest.raises(ValueError, match="Invalid dice format:"):
+        parse_and_execute_command("roll 2d")
+
+
+# --- Tests for 'stats' command ---
+
+
+def test_parse_execute_stats_simple():
+    """Test basic 'stats N <dice>' command."""
+    result = parse_and_execute_command("stats 100 2d6")
+    assert isinstance(result, DiceRollStats)
+    assert result.count == 100
+
+
+def test_parse_execute_stats_aliases():
+    """Test 's' and 'statistics' aliases for stats command."""
+    result_s = parse_and_execute_command("s 50 1d8")
+    assert isinstance(result_s, DiceRollStats)
+    assert result_s.count == 50
+
+    result_stats = parse_and_execute_command(
+        " statistics  10  4d4+1 "
+    )  # Test alias and whitespace
+    assert isinstance(result_stats, DiceRollStats)
+    assert result_stats.count == 10
+
+
+def test_parse_execute_stats_missing_args():
+    """Test 'stats' command with missing arguments."""
+    with pytest.raises(
+        ValueError, match="Missing number of simulations or dice specification"
+    ):
+        parse_and_execute_command("stats")
+    with pytest.raises(
+        ValueError, match="Missing number of simulations or dice specification"
+    ):
+        parse_and_execute_command("stats 100")
+
+
+def test_parse_execute_stats_invalid_sim_count():
+    """Test 'stats' command with invalid simulation count."""
+    with pytest.raises(ValueError, match="Number of simulations must be an integer"):
+        parse_and_execute_command("stats abc 2d6")
+    with pytest.raises(ValueError, match="Number of simulations must be positive"):
+        parse_and_execute_command("stats 0 2d6")
+    with pytest.raises(ValueError, match="Number of simulations must be positive"):
+        parse_and_execute_command("stats -10 1d10")
+
+
+def test_parse_execute_stats_invalid_dice():
+    """Test 'stats' command with invalid dice string."""
+    with pytest.raises(ValueError, match="Invalid dice format:"):
+        parse_and_execute_command("stats 100 d10+5")
+
+
+# --- Test for unknown command ---
+
+
+def test_parse_execute_unknown_command():
+    """Test handling of an unknown command."""
+    with pytest.raises(ValueError, match="Unknown command"):
+        parse_and_execute_command("simulate 3d6")
+
+
+def test_parse_execute_empty_command():
+    """Test handling of an empty command string."""
+    with pytest.raises(ValueError, match="Unknown command"):
+        parse_and_execute_command("")
+
+
+def test_parse_execute_whitespace_command():
+    """Test handling of a command string with only whitespace."""
+    with pytest.raises(ValueError, match="Unknown command"):
+        parse_and_execute_command("   ")

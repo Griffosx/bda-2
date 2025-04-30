@@ -1,5 +1,9 @@
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from src.roll_simulation import (
@@ -24,14 +28,31 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+# Define the path to the static directory where frontend build output will be placed
+# Use absolute path within the container context, assuming Dockerfile copies build to /app/static
+STATIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static"))
+
+# Mount static files directory BEFORE the root path
+# This assumes your frontend build output (JS, CSS, etc.) is in 'static'
+# and index.html refers to them relatively (e.g., /assets/index-*.js)
+app.mount(
+    "/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets"
+)
+
 
 class PromptRequest(BaseModel):
     command: str
 
 
 @app.get("/")
-async def ping():
-    return "Pong"
+async def serve_frontend():
+    """Serves the main frontend application."""
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    if not os.path.exists(index_path):
+        # This helps during local development if static files aren't built/copied yet
+        # In production (Docker), this file should always exist if the build succeeded.
+        raise HTTPException(status_code=404, detail="index.html not found")
+    return FileResponse(index_path)
 
 
 @app.post("/prompt")

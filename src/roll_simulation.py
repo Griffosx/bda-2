@@ -11,6 +11,12 @@ class DiceRoll:
     num_sides: int
     modifier: int = 0
 
+    def __post_init__(self):
+        if self.num_dice > 1000:
+            raise ValueError("Maximum number of dice is 1000")
+        if self.num_sides > 1000:
+            raise ValueError("Maximum number of sides is 1000")
+
 
 @dataclass
 class DiceResult:
@@ -74,6 +80,8 @@ def simulate_dice_statistics(roll: DiceRoll, num_simulations: int) -> DiceRollSt
     """
     if num_simulations <= 0:
         raise ValueError("Number of simulations must be positive")
+    if num_simulations > 10000:
+        raise ValueError("Maximum number of simulations is 10000")
 
     # Run all simulations and collect total values
     all_results = []
@@ -166,6 +174,8 @@ def parse_and_execute_command(command_string: str):
             return simulate_dice_roll(roll)
         except DiceParsingError as e:
             raise ValueError(f"Invalid dice format: {e}")
+        except ValueError as e:
+            raise ValueError(str(e))
 
     # Handle stats command
     elif command in ("s", "stats", "statistics"):
@@ -177,15 +187,14 @@ def parse_and_execute_command(command_string: str):
         except ValueError:
             raise ValueError("Number of simulations must be an integer")
 
-        if num_simulations <= 0:
-            raise ValueError("Number of simulations must be positive")
-
         dice_string = parts[2].strip()
         try:
             roll = parse_dice_roll(dice_string)
             return simulate_dice_statistics(roll, num_simulations)
         except DiceParsingError as e:
             raise ValueError(f"Invalid dice format: {e}")
+        except ValueError as e:
+            raise ValueError(str(e))
 
     # Handle unknown or empty command
     else:
